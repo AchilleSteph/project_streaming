@@ -1,5 +1,6 @@
 import  org.apache.avro.ipc.specific.Person
 import scala.tools.nsc.doc.model.Public
+import SparkBigData.session_spark
 
 object Launch{
 
@@ -14,5 +15,7 @@ private val bigData_branch : String = "Streaming Pipeline with Kafka"
     var test: Int = 15
     test = test + 10
   }
+
+  val ss = session_spark(true)
 }
 
