@@ -17,5 +17,8 @@ private val bigData_branch : String = "Streaming Pipeline with Kafka"
   }
 
   val ss = session_spark(true)
+  val df = ss.read.csv("C:\\Users\\stach\\Downloads\\DimEmployee.csv")
+  df.show()
+  //df.write.format("csv").save("C:/Users/stach/IdeaProjects/project_streaming/spark-warehouse/echantillon")
 }
 

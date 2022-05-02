@@ -1,4 +1,4 @@
-import org.apache.kafka.clients.consumer.{ConsumerRecord, ConsumerRecords, KafkaConsumer}
+import org.apache.kafka.clients.consumer.{CommitFailedException, ConsumerRecord, ConsumerRecords, KafkaConsumer}
 import org.apache.spark.streaming.kafka010._
 import org.apache.kafka.common.serialization._
 import org.apache.kafka.common.security.auth.SecurityProtocol
@@ -14,8 +14,8 @@ import java.util.Collections
 import java.util
 import java.util.Properties
 import org.apache.log4j.LogManager._
-import scala.collection.JavaConverters._
 
+import scala.collection.JavaConverters._
 import java.time.Duration
 
 object KafkaStreaming {
@@ -65,7 +65,7 @@ object KafkaStreaming {
     props.put("bootstrap.servers", "kafkaBootstrapServers")
     props.put("group.id", "kafkaConsumerGroupId")
     props.put("auto.offset.reset", "latest")
-    props.put("enable.auto.commit", false)
+    props.put("enable.auto.commit", "false")
     props.put("key.deserializer", "org.apache.kafka.common.serialization.Deserializer")
     props.put("value.deserializer" ,"org.apache.kafka.common.serialization.Deserializer")
 
@@ -93,7 +93,13 @@ object KafkaStreaming {
           ", Offset: " + message.offset() +
           ", Partition:" + message.partition())
         }
-      consumer.commitAsync()
+        try{
+          consumer.commitAsync()
+        } catch {
+          case ex:CommitFailedException=>
+            trace_kafka.error(" Erreur dans le commit des offsets. Kafka n'a pas reçu le jeton de reconnaissance confirmant que nous avons bien reçu les données")
+        }
+
 
       }
 
@@ -132,12 +138,12 @@ object KafkaStreaming {
 
   def getProducteurKafka(KafkaBootstrapServers:String, topic_name:String, message:String):KafkaProducer[String, String] = {
 
-    trace_kafka.info("Instanciation d'une instance du producer kafka aux serveurs " + ${KafkaBootstrapServers})
+    trace_kafka.info(s"Instanciation d'une instance du producer kafka aux serveurs  ${KafkaBootstrapServers}")
     val producerParam = getKafkaProducerParams(KafkaBootstrapServers)
     val producer_kafka = new KafkaProducer[String, String](producerParam)
 
 
-    trace_kafka.info("message à publier dans le topic " + ${topic_name} + ": " + ${message})
+    trace_kafka.info(s"message à publier dans le topic " + {topic_name} + ": " + {message})
     val record_publish = new ProducerRecord[String, String](topic_name, message)
 
     try{
@@ -147,7 +153,7 @@ object KafkaStreaming {
     } catch{
       case ex:Exception =>
         trace_kafka.error(s"Erreur de la publication message dans Kafka ${ex.printStackTrace()}")
-        trace_kafka.info("La liste des paramétres pour la connexion du producer est :" + ${getKafkaProducerParams(KafkaBootstrapServers)})
+        trace_kafka.info(s"La liste des paramétres pour la connexion du producer est :" + {getKafkaProducerParams(KafkaBootstrapServers)})
     } finally{
       producer_kafka.close()
     }
