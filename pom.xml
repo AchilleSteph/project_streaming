@@ -83,7 +83,7 @@
             <groupId>org.apache.spark</groupId>
             <artifactId>spark-sql_2.11</artifactId>
             <version>${spark.sql.version}</version>
-            <scope>provided</scope>
+
         </dependency>
 
         <!-- https://mvnrepository.com/artifact/org.apache.spark/spark-streaming -->
@@ -106,7 +106,7 @@
             <groupId>org.apache.spark</groupId>
             <artifactId>spark-hive_2.11</artifactId>
             <version>${spark.hive.version}</version>
-            <scope>provided</scope>
+            <scope>compile</scope>
         </dependency>
 
         <!-- https://mvnrepository.com/artifact/org.scalatest/scalatest -->
@@ -137,6 +137,14 @@
             <artifactId>twitter4j-core</artifactId>
             <version>${twitter4j.version}</version>
         </dependency>
+
+        <!-- https://mvnrepository.com/artifact/org.twitter4j/twitter4j-stream -->
+        <dependency>
+            <groupId>org.twitter4j</groupId>
+            <artifactId>twitter4j-stream</artifactId>
+            <version>${twitter4j.version}</version>
+        </dependency>
+
 
         <!-- https://mvnrepository.com/artifact/org.apache.spark/spark-streaming-twitter -->
         <dependency>
