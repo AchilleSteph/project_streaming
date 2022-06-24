@@ -10,11 +10,15 @@ import scala.collection.JavaConverters._
 import KafkaStreaming._
 import org.apache.log4j.LogManager
 import org.apache.log4j.LogManager._
-
 import twitter4j.Twitter
 import twitter4j.TwitterFactory
 import twitter4j._
 import twitter4j.conf.{Configuration, ConfigurationBuilder}
+import org.apache.spark.streaming.twitter.TwitterUtils
+import twitter4j.auth.OAuthAuthorization
+import SparkBigData._
+import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
+import org.apache.spark.streaming.Minutes
 
 
 
@@ -79,6 +83,23 @@ class TwitterKafkaStreaming {
 
   }
 
+  //fonction qui renvoie les paramètres d'authentification à Twitter par le client Twitter4j
+
+  private def twitter0AuthConf (consumer_key : String, consumer_secret : String, access_token : String, access_token_secret : String) : ConfigurationBuilder = {
+
+    // create a twitter object that will allow twitter4j to access Tweeter API on my behalf
+    val twitterConfig : ConfigurationBuilder = new ConfigurationBuilder()
+
+    twitterConfig.setOAuthConsumerKey(consumer_key)
+      .setOAuthConsumerSecret(consumer_secret)
+      .setOAuthAccessToken(access_token)
+      .setOAuthAccessTokenSecret(access_token_secret)
+      .setDebugEnabled(true)
+      .setJSONStoreEnabled(true)
+
+    return twitterConfig
+  }
+
   /**
    *
    * @param consumer_key
@@ -97,14 +118,9 @@ class TwitterKafkaStreaming {
 
     val queue : BlockingQueue[Status] = new LinkedBlockingQueue[Status](10000)
 
-    // create a twitter object that will allow twitter4j to access Tweeter API on my behalf
-    val twitterConfig : ConfigurationBuilder = new ConfigurationBuilder()
-      .setOAuthConsumerKey(consumer_key)
-      .setOAuthConsumerSecret(consumer_secret)
-      .setOAuthAccessToken(access_token)
-      .setOAuthAccessTokenSecret(access_token_secret)
-      .setDebugEnabled(true)
-      .setJSONStoreEnabled(true)
+    // create a twitter object that will allow twitter4j to access Tweeter API on my behalf, using twitter0AuthConf function
+
+    val twitterConfig = twitter0AuthConf(consumer_key, consumer_secret, access_token, access_token_secret)
 
     // create an object twitter4j client using the builder twitterConfig, and get an instance
 
@@ -153,4 +169,65 @@ val query = new FilterQuery().track(list_requette)
 
   }
 
-}
+  /* Cleint Spark Streaming Kafka. Ce client se connecte a twitter et publie les infos à kafka via un producer Kafka
+   */
+
+  def producerTwitterkafkaSpark (consumer_key : String, consumer_secret : String, access_token : String, access_token_secret : String,  list_filtre : Array[String], KafkaBootstrapServers : String, topic_spark : String) : Unit = {
+
+    // create an authorization with a protocol to connect to twitter, using twitter4j client
+    val twitterConfig = twitter0AuthConf(consumer_key, consumer_secret, access_token, access_token_secret)
+    val auth0 = new OAuthAuthorization(twitterConfig.build())
+
+    // create the twitter spark streaming client using TwitterUtils class
+    val client_streaming_twitter = TwitterUtils.createStream(getSparkStreamingContext(true, 15), Some(auth0))
+
+    /* Quelques exemples de récupération de données en spark(non pas des tweets mais des jeux de données en format RDD)
+     Une occasion de placer les filtres*/
+    val tweetsmsg = client_streaming_twitter.flatMap(status => status.getText())
+    val tweetsComplets = client_streaming_twitter.flatMap(status => (status.getText() ++ status.getContributors() ++ status.getLang()))
+    val tweetsFR = client_streaming_twitter.filter(status => status.getLang() =="FR")
+    val hashtags = client_streaming_twitter.flatMap(status => status.getText().split(" ").filter(word => word.startsWith("#")))
+    // compter les hashtags obtenus toutes les 3 minutes
+    val hashtagsCount = hashtags.window(Minutes(3))
+
+    // to persist data in the Kafka cluster
+
+    tweetsmsg.foreachRDD{
+      (tweetsRDD, temps) =>
+        if (!tweetsRDD.isEmpty()) {
+          tweetsRDD.foreachPartition {
+            partitionOfTweets =>
+              val producer_kafka = new KafkaProducer[String, String](getKafkaProducerParams(KafkaBootstrapServers))
+              partitionOfTweets.foreach {
+                tweetEvent =>
+                  val record_publish = new ProducerRecord[String, String](topic_spark, tweetEvent.toString)
+                  producer_kafka.send(record_publish)
+              }
+              producer_kafka.close()
+          }
+        }
+    }
+
+    // Another example to persist tweets using our in-build producer
+
+    tweetsComplets.foreachRDD {
+      tweetsRDD =>
+        if (!tweetsRDD.isEmpty()) {
+          tweetsRDD.foreachPartition {
+            partitionOfTweets =>
+              partitionOfTweets.foreach {
+                tweet =>
+                  getProducteurKafka(KafkaBootstrapServers, topic_spark, tweet.toString)
+              }
+          }
+        }
+        getProducteurKafka(KafkaBootstrapServers, topic_name = "", message = "").close()
+    }
+
+
+
+  }
+
+
+
+  }
