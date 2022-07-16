@@ -14,6 +14,7 @@ import java.util.Collections
 import java.util
 import java.util.Properties
 import org.apache.log4j.LogManager._
+import org.apache.spark.streaming.StreamingContext
 
 import scala.collection.JavaConverters._
 import java.time.Duration
@@ -41,14 +42,13 @@ object KafkaStreaming {
   def getConsommateurKafka(kafkaBootstrapServers: String, kafkaConsumerGroupId: String,
                           kafkaConsumerReaderOrder: String,
                           kafkaZookeeper: String, kerberosName: String,
-                          batchDuration:Int, kafkaTopics: String):InputDStream[ConsumerRecord[String, String]] ={
+                          kafkaTopics: Array[String], streamContext: StreamingContext):InputDStream[ConsumerRecord[String, String]] ={
 
-    val ssc = getSparkStreamingContext(true, batchDuration)
     val parameters = getKafkaConsumerParams("localHost:9092", "DSC",
       "latest", "", "")
 
     val consommateurKafka = KafkaUtils.createDirectStream[String, String](
-      ssc,
+      streamContext,
       PreferConsistent,
       Subscribe[String, String](Array("topic1"), parameters)
     )
